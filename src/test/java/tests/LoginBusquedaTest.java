@@ -33,11 +33,12 @@ public class LoginBusquedaTest {
         WebDriverManager.chromedriver().setup();
 
         ChromeOptions options = new ChromeOptions();
-        // options.addArguments("--headless=new"); // ✅ Modo headless compatible con
-        // Actions
-        // options.addArguments("--no-sandbox"); // ✅ Necesario en entornos CI
-        // options.addArguments("--disable-dev-shm-usage"); // ✅ Para evitar errores de
-        // memoria compartida
+        options.addArguments("--headless=new");
+        options.addArguments("--no-sandbox");
+        options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--remote-allow-origins=*");
+        options.addArguments("--disable-gpu");
+        options.addArguments("--user-data-dir=/tmp/chrome-user-data"); // <--- ✅ ruta única para evitar conflictos
 
         driver = new ChromeDriver(options);
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
