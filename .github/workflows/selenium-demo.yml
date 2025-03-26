@@ -34,7 +34,8 @@ jobs:
       - name: Download HTML report
         run: |
           mkdir -p report
-          cp -r reports/* report/
+          cp -r target/surefire-reports/* report/ || true
+          cp -r reports/* report/ || true
           mv report/ExtentReport.html report/index.html
 
       - name: Deploy report to GitHub Pages
@@ -43,22 +44,36 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./report
 
-      - name: Send summary to Teams via Power Automate
+      - name: Send summary to Teams
+        env:
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
         run: |
-          TEAMS_WEBHOOK="${{ secrets.TEAMS_WEBHOOK }}"
-
-          PASADAS=$(grep -o 'status="pass"' reports/ExtentReport.html | wc -l)
-          FALLIDAS=$(grep -o 'status="fail"' reports/ExtentReport.html | wc -l)
-          TOTAL=$((PASADAS + FALLIDAS))
-          CASO=$(grep -oP "<div class='test-details-name'>\\K.*?(?=</div>)" reports/ExtentReport.html | head -1)
-
-          if [ "$FALLIDAS" -gt 0 ]; then
-            MENSAJE="❌ *Selenium Demo*\n🧪 *$CASO*\n❗ Fallaron $FALLIDAS de $TOTAL pruebas.\n🔗 Ver reporte: https://ozkar-bside.github.io/Selenium-demo/ExtentReport.html"
-          else
-            MENSAJE="✅ *Selenium Demo*\n🧪 *$CASO*\n✔️ $PASADAS de $TOTAL pruebas pasaron.\n🔗 Ver reporte: https://ozkar-bside.github.io/Selenium-demo/ExtentReport.html"
+          # Asegurar que el reporte existe
+          if [ ! -f "report/index.html" ]; then
+            echo "Error: Report file not found!"
+            exit 1
           fi
 
-          curl -X POST -H 'Content-Type: application/json' \
-               -d "{\"text\": \"$MENSAJE\"}" \
-               "$TEAMS_WEBHOOK"
+          # Contar pruebas
+          PASADAS=$(grep -o 'status="pass"' report/index.html | wc -l || echo 0)
+          FALLIDAS=$(grep -o 'status="fail"' report/index.html | wc -l || echo 0)
+          TOTAL=$((PASADAS + FALLIDAS))
+          
+          # Extraer nombre del caso de prueba
+          CASO=$(grep -oP "<div class='test-details-name'>\K.*?(?=</div>)" report/index.html | head -1 || echo "Unknown Test")
+          
+          # Construir mensaje
+          if [ "$FALLIDAS" -gt 0 ]; then
+            MENSAJE='{
+              "text": "❌ *Selenium Demo*\n🧪 *'"$CASO"'*\n❗ Fallaron '"$FALLIDAS"' de '"$TOTAL"' pruebas.\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/)"
+            }'
+          else
+            MENSAJE='{
+              "text": "✅ *Selenium Demo*\n🧪 *'"$CASO"'*\n✔️ '"$PASADAS"' de '"$TOTAL"' pruebas pasaron.\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/)"
+            }'
+          fi
 
+          # Enviar a Teams
+          curl -X POST -H "Content-Type: application/json" \
+               -d "$MENSAJE" \
+               "$TEAMS_WEBHOOK"
