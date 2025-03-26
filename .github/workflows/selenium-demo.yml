@@ -31,16 +31,50 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Download HTML report
+      - name: Prepare HTML report
         shell: bash
         run: |
           mkdir -p report
           cp -r reports/* report/
-          mv report/ExtentReport.html report/index.html
           echo "<!-- Updated: $(date -u) -->" >> report/index.html
+
+      - name: Clean old git data (just in case)
+        run: rm -rf ./report/.git || true
 
       - name: Deploy report to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./report
+          publish_branch: gh-pages
+          force_orphan: true
+
+      - name: Send summary to Teams
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        run: |
+          if [ ! -f "report/index.html" ]; then
+            echo "Error: Report file not found!"
+            exit 1
+          fi
+
+          PASADAS=$(grep -c "test-status label pass" report/index.html) || PASADAS=0
+          FALLIDAS=$(grep -c "test-status label fail" report/index.html) || FALLIDAS=0
+          TOTAL=$((PASADAS + FALLIDAS))
+          TIMESTAMP=$(date +%s)
+
+          CASO=$(grep -oP "<div class='test-details-name'>\\K[^<]+" report/index.html | head -1) || CASO="Conjunto de Pruebas"
+
+          if [ "$FALLIDAS" -gt 0 ]; then
+            MENSAJE=$(jq -n \
+              --arg texto "❌ *Selenium Demo*\n\n🧪 **$CASO**\n\n❗ Fallaron $FALLIDAS de $TOTAL pruebas.\n\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/?v=$TIMESTAMP)" \
+              '{text: $texto}')
+          else
+            MENSAJE=$(jq -n \
+              --arg texto "✅ *Selenium Demo*\n\n🧪 **$CASO**\n\n✔️ $PASADAS de $TOTAL pruebas pasaron.\n\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/?v=$TIMESTAMP)" \
+              '{text: $texto}')
+          fi
+
+          curl -X POST -H "Content-Type: application/json" \
+               -d "$MENSAJE" \
+               "$TEAMS_WEBHOOK_URL" || echo "Error al enviar a Teams"
