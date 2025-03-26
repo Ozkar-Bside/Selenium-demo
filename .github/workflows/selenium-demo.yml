@@ -34,9 +34,12 @@ jobs:
       - name: Download HTML report
         run: |
           mkdir -p report
+          # Copia reportes de TestNG o JUnit
           cp -r target/surefire-reports/* report/ || true
+          # Copia reportes de Extent, asumiendo que los generas en `reports/`
           cp -r reports/* report/ || true
-          mv report/ExtentReport.html report/index.html
+          # Renombra el reporte principal para que sea index.html
+          mv report/ExtentReport.html report/index.html || true
 
       - name: Deploy report to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
@@ -46,41 +49,45 @@ jobs:
 
       - name: Send summary to Teams
         env:
-          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}  # Debe estar en GitHub Secrets
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}  # Debe estar definido en GitHub Secrets
         run: |
-          # Verificar existencia del reporte
+          # 1. Verificar que el HTML exista
           if [ ! -f "report/index.html" ]; then
             echo "Error: Report file not found!"
             exit 1
           fi
 
-          # Contar pruebas (con manejo de errores)
-          PASADAS=$(grep -o 'status="pass"' report/index.html | wc -l) || PASADAS=0
-          FALLIDAS=$(grep -o 'status="fail"' report/index.html | wc -l) || FALLIDAS=0
+          # 2. Contar pruebas pasadas/fallidas
+          #    Ajusta la cadena de grep dependiendo de cómo Extent structure el HTML.
+          #    Aquí se asume que cada test en estado 'pass' aparece con "test-status label pass"
+          #    y cada test en estado 'fail' aparece con "test-status label fail".
+          PASADAS=$(grep -c "test-status label pass" report/index.html) || PASADAS=0
+          FALLIDAS=$(grep -c "test-status label fail" report/index.html) || FALLIDAS=0
           TOTAL=$((PASADAS + FALLIDAS))
 
-          # Extraer nombre del caso (con valor por defecto)
-          CASO=$(grep -oP "<div class='test-details-name'>\K[^<]+" report/index.html | head -1) || CASO="Conjunto de Pruebas"
+          # 3. Extraer el nombre del primer "test" (o el título) 
+          #    Si no se encuentra, usamos "Conjunto de Pruebas" como fallback.
+          CASO=$(grep -oP "<div class='test-details-name'>\\K[^<]+" report/index.html | head -1) || CASO="Conjunto de Pruebas"
 
-          # Validar que tenemos URL de webhook
+          # 4. Verificar que exista la URL del webhook
           if [ -z "$TEAMS_WEBHOOK_URL" ]; then
             echo "ERROR: TEAMS_WEBHOOK_URL no está configurada"
             exit 1
           fi
 
-          # Construir mensaje (formato JSON válido)
+          # 5. Construir el mensaje con mejores saltos de línea
           if [ "$FALLIDAS" -gt 0 ]; then
             MENSAJE=$(jq -n \
-              --arg texto "❌ *Selenium Demo*\n🧪 *$CASO*\n❗ Fallaron $FALLIDAS de $TOTAL pruebas.\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/)" \
+              --arg texto "❌ *Selenium Demo*\n\n🧪 **$CASO**\n\n❗ Fallaron $FALLIDAS de $TOTAL pruebas.\n\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/)" \
               '{text: $texto}')
           else
             MENSAJE=$(jq -n \
-              --arg texto "✅ *Selenium Demo*\n🧪 *$CASO*\n✔️ $PASADAS de $TOTAL pruebas pasaron.\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/)" \
+              --arg texto "✅ *Selenium Demo*\n\n🧪 **$CASO**\n\n✔️ $PASADAS de $TOTAL pruebas pasaron.\n\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/)" \
               '{text: $texto}')
           fi
 
-          # Enviar a Teams (con verificación)
+          # 6. Enviar el mensaje a Teams
           echo "Enviando a Teams..."
           curl -X POST -H "Content-Type: application/json" \
-              -d "$MENSAJE" \
-              "$TEAMS_WEBHOOK_URL" || echo "Error al enviar a Teams"
+               -d "$MENSAJE" \
+               "$TEAMS_WEBHOOK_URL" || echo "Error al enviar a Teams"
