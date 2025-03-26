@@ -43,5 +43,19 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./report
 
-      - name: Mostrar liga del reporte al finalizar
-        run: echo "::notice title=📊 Reporte de Pruebas::Ver el reporte en 👉 https://ozkar-bside.github.io/Selenium-demo/"
+      - name: Notificar a Teams con resultados
+        if: always()
+        run: |
+          PASADAS=$(grep -o 'test-method status="PASS"' reports/ExtentReport.html | wc -l)
+          FALLIDAS=$(grep -o 'test-method status="FAIL"' reports/ExtentReport.html | wc -l)
+          TOTAL=$((PASADAS + FALLIDAS))
+
+          if [ "$FALLIDAS" -gt 0 ]; then
+            MENSAJE="❌ Fallaron $FALLIDAS de $TOTAL pruebas. [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/ExtentReport.html)"
+          else
+            MENSAJE="✅ $PASADAS de $TOTAL pruebas pasaron. [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/ExtentReport.html)"
+          fi
+
+          curl -X POST -H 'Content-Type: application/json' \
+               -d "{\"text\": \"$MENSAJE\"}" \
+               "${{ secrets.TEAMS_WEBHOOK_URL }}"
