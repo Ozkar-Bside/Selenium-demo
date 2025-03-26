@@ -32,10 +32,12 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Download HTML report
+        shell: bash
         run: |
           mkdir -p report
           cp -r reports/* report/
           mv report/ExtentReport.html report/index.html
+          echo "<!-- Updated: $(date -u) -->" >> report/index.html
 
       - name: Deploy report to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
