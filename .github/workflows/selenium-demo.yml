@@ -21,7 +21,24 @@ jobs:
         uses: browser-actions/setup-chrome@v1
 
       - name: Run tests
-        run: mvn clean test
+        run: |
+          # Limpiar reportes anteriores
+          rm -rf reports/ExtentReport.html || true
+          # Ejecutar pruebas
+          mvn clean test
+          # Verificar generación del reporte
+          if [ ! -f "reports/ExtentReport.html" ]; then
+            echo "Error: ExtentReport.html no se generó correctamente"
+            exit 1
+          fi
+
+      - name: Commit updated report
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add reports/ExtentReport.html
+          git commit -m "Update test report [skip ci]" || echo "No changes to commit"
+          git push
 
   deploy-report:
     needs: test
@@ -34,32 +51,13 @@ jobs:
       - name: Prepare HTML report
         shell: bash
         run: |
-          # Crear directorio y copiar reportes
           mkdir -p report
           cp -r reports/* report/
-          
-          # Renombrar el reporte principal a index.html
           mv report/ExtentReport.html report/index.html
-          
-          # Agregar timestamp al archivo HTML
+          # Agregar marca de tiempo única
           echo "<!-- Updated: $(date -u '+%Y-%m-%d %H:%M:%S UTC') -->" >> report/index.html
-          
-          # Forzar actualización del contenido
-          sed -i "s/ExtentReport.html/index.html/g" report/index.html
-
-      - name: Verify report content
-        run: |
-          echo "=== Estructura del directorio report/ ==="
-          ls -la report/
-          
-          echo "=== Cabecera del index.html ==="
-          head -n 20 report/index.html
-          
-          echo "=== Línea con timestamp ==="
-          grep "Updated:" report/index.html || echo "Timestamp no encontrado"
-
-      - name: Clean old git data (just in case)
-        run: rm -rf ./report/.git || true
+          # Forzar actualización del navegador
+          sed -i 's/</head>/<meta http-equiv="cache-control" content="no-cache" \/>\n<meta http-equiv="expires" content="0" \/>\n<meta http-equiv="pragma" content="no-cache" \/>\n<\/head>/' report/index.html
 
       - name: Deploy report to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
@@ -68,32 +66,27 @@ jobs:
           publish_dir: ./report
           publish_branch: gh-pages
           force_orphan: true
-          keep_files: false  # Eliminar archivos antiguos
+          keep_files: false
 
       - name: Send summary to Teams
         env:
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
         shell: bash
         run: |
-          if [ ! -f "report/index.html" ]; then
-            echo "Error: Report file not found!"
-            exit 1
-          fi
-
-          PASADAS=$(grep -c "test-status label pass" report/index.html) || PASADAS=0
-          FALLIDAS=$(grep -c "test-status label fail" report/index.html) || FALLIDAS=0
+          PASADAS=$(grep -c "test-status label pass" reports/ExtentReport.html) || PASADAS=0
+          FALLIDAS=$(grep -c "test-status label fail" reports/ExtentReport.html) || FALLIDAS=0
           TOTAL=$((PASADAS + FALLIDAS))
           TIMESTAMP=$(date +%s)
 
-          CASO=$(grep -oP "<div class='test-details-name'>\\K[^<]+" report/index.html | head -1) || CASO="Conjunto de Pruebas"
+          CASO=$(grep -oP "<div class='test-details-name'>\\K[^<]+" reports/ExtentReport.html | head -1) || CASO="Conjunto de Pruebas"
 
           if [ "$FALLIDAS" -gt 0 ]; then
             MENSAJE=$(jq -n \
-              --arg texto "❌ *Selenium Demo*\n\n🧪 **$CASO**\n\n❗ Fallaron $FALLIDAS de $TOTAL pruebas.\n\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/?v=$TIMESTAMP)" \
+              --arg texto "❌ *Selenium Demo*\n\n🧪 **$CASO**\n\n❗ Fallaron $FALLIDAS de $TOTAL pruebas.\n\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/?v=$TIMESTAMP)\n📄 [Reporte bruto](https://github.com/ozkar-bside/Selenium-demo/blob/main/reports/ExtentReport.html)" \
               '{text: $texto}')
           else
             MENSAJE=$(jq -n \
-              --arg texto "✅ *Selenium Demo*\n\n🧪 **$CASO**\n\n✔️ $PASADAS de $TOTAL pruebas pasaron.\n\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/?v=$TIMESTAMP)" \
+              --arg texto "✅ *Selenium Demo*\n\n🧪 **$CASO**\n\n✔️ $PASADAS de $TOTAL pruebas pasaron.\n\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/?v=$TIMESTAMP)\n📄 [Reporte bruto](https://github.com/ozkar-bside/Selenium-demo/blob/main/reports/ExtentReport.html)" \
               '{text: $texto}')
           fi
 
