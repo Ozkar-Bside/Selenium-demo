@@ -43,18 +43,18 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./report
 
-      - name: Notificar resultado en Teams via Power Automate
+      - name: Send summary to Teams via Power Automate
         run: |
-          PASADAS=$(grep -o 'test-method status="PASS"' reports/ExtentReport.html | wc -l)
-          FALLIDAS=$(grep -o 'test-method status="FAIL"' reports/ExtentReport.html | wc -l)
+          PASADAS=$(grep -o '"status":"pass"' reports/ExtentReport.html | wc -l)
+          FALLIDAS=$(grep -o '"status":"fail"' reports/ExtentReport.html | wc -l)
           TOTAL=$((PASADAS + FALLIDAS))
 
           if [ "$FALLIDAS" -gt 0 ]; then
-            MENSAJE="❌ Fallaron $FALLIDAS de $TOTAL pruebas. [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/ExtentReport.html)"
+            MENSAJE="❌ Fallaron $FALLIDAS de $TOTAL pruebas.\n🔗 Ver reporte: https://ozkar-bside.github.io/Selenium-demo/ExtentReport.html"
           else
-            MENSAJE="✅ $PASADAS de $TOTAL pruebas pasaron. [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/ExtentReport.html)"
+            MENSAJE="✅ $PASADAS de $TOTAL pruebas pasaron.\n🔗 Ver reporte: https://ozkar-bside.github.io/Selenium-demo/ExtentReport.html"
           fi
 
           curl -X POST -H 'Content-Type: application/json' \
-               -d "{\"text\": \"$MENSAJE\"}" \
-               "https://prod-182.westus.logic.azure.com:443/workflows/5f32762f64434d3695513ceab30de1b0/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=n1ETz8T5aXKWUtw6rXLbRqy9F0_V8N3yUuApDlSX2Ao"
+            -d "{\"text\": \"$MENSAJE\"}" \
+            "${{ secrets.TEAMS_WEBHOOK }}"
