@@ -46,34 +46,41 @@ jobs:
 
       - name: Send summary to Teams
         env:
-          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}  # Debe estar en GitHub Secrets
         run: |
-          # Asegurar que el reporte existe
+          # Verificar existencia del reporte
           if [ ! -f "report/index.html" ]; then
             echo "Error: Report file not found!"
             exit 1
           fi
 
-          # Contar pruebas
-          PASADAS=$(grep -o 'status="pass"' report/index.html | wc -l || echo 0)
-          FALLIDAS=$(grep -o 'status="fail"' report/index.html | wc -l || echo 0)
+          # Contar pruebas (con manejo de errores)
+          PASADAS=$(grep -o 'status="pass"' report/index.html | wc -l) || PASADAS=0
+          FALLIDAS=$(grep -o 'status="fail"' report/index.html | wc -l) || FALLIDAS=0
           TOTAL=$((PASADAS + FALLIDAS))
-          
-          # Extraer nombre del caso de prueba
-          CASO=$(grep -oP "<div class='test-details-name'>\K.*?(?=</div>)" report/index.html | head -1 || echo "Unknown Test")
-          
-          # Construir mensaje
-          if [ "$FALLIDAS" -gt 0 ]; then
-            MENSAJE='{
-              "text": "❌ *Selenium Demo*\n🧪 *'"$CASO"'*\n❗ Fallaron '"$FALLIDAS"' de '"$TOTAL"' pruebas.\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/)"
-            }'
-          else
-            MENSAJE='{
-              "text": "✅ *Selenium Demo*\n🧪 *'"$CASO"'*\n✔️ '"$PASADAS"' de '"$TOTAL"' pruebas pasaron.\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/)"
-            }'
+
+          # Extraer nombre del caso (con valor por defecto)
+          CASO=$(grep -oP "<div class='test-details-name'>\K[^<]+" report/index.html | head -1) || CASO="Conjunto de Pruebas"
+
+          # Validar que tenemos URL de webhook
+          if [ -z "$TEAMS_WEBHOOK_URL" ]; then
+            echo "ERROR: TEAMS_WEBHOOK_URL no está configurada"
+            exit 1
           fi
 
-          # Enviar a Teams
+          # Construir mensaje (formato JSON válido)
+          if [ "$FALLIDAS" -gt 0 ]; then
+            MENSAJE=$(jq -n \
+              --arg texto "❌ *Selenium Demo*\n🧪 *$CASO*\n❗ Fallaron $FALLIDAS de $TOTAL pruebas.\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/)" \
+              '{text: $texto}')
+          else
+            MENSAJE=$(jq -n \
+              --arg texto "✅ *Selenium Demo*\n🧪 *$CASO*\n✔️ $PASADAS de $TOTAL pruebas pasaron.\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/)" \
+              '{text: $texto}')
+          fi
+
+          # Enviar a Teams (con verificación)
+          echo "Enviando a Teams..."
           curl -X POST -H "Content-Type: application/json" \
-               -d "$MENSAJE" \
-               "$TEAMS_WEBHOOK"
+              -d "$MENSAJE" \
+              "$TEAMS_WEBHOOK_URL" || echo "Error al enviar a Teams"
