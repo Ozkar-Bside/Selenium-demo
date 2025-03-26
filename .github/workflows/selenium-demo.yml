@@ -44,8 +44,6 @@ jobs:
           publish_dir: ./report
 
       - name: Send summary to Teams via Power Automate
-        env:
-          WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK }}
         run: |
           PASADAS=$(grep -o 'status="pass"' reports/ExtentReport.html | wc -l)
           FALLIDAS=$(grep -o 'status="fail"' reports/ExtentReport.html | wc -l)
@@ -60,4 +58,4 @@ jobs:
 
           curl -X POST -H 'Content-Type: application/json' \
             -d "{\"text\": \"$MENSAJE\"}" \
-            "$WEBHOOK_URL"
+            "${{ secrets.TEAMS_WEBHOOK }}"
