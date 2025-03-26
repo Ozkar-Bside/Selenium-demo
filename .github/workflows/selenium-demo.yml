@@ -58,6 +58,7 @@ jobs:
           PASADAS=$(grep -c "test-status label pass" report/index.html) || PASADAS=0
           FALLIDAS=$(grep -c "test-status label fail" report/index.html) || FALLIDAS=0
           TOTAL=$((PASADAS + FALLIDAS))
+          TIMESTAMP=$(date +%s)
 
           CASO=$(grep -oP "<div class='test-details-name'>\\K[^<]+" report/index.html | head -1) || CASO="Conjunto de Pruebas"
 
@@ -68,11 +69,11 @@ jobs:
 
           if [ "$FALLIDAS" -gt 0 ]; then
             MENSAJE=$(jq -n \
-              --arg texto "❌ *Selenium Demo*\n\n🧪 **$CASO**\n\n❗ Fallaron $FALLIDAS de $TOTAL pruebas.\n\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/)" \
+              --arg texto "❌ *Selenium Demo*\n\n🧪 **$CASO**\n\n❗ Fallaron $FALLIDAS de $TOTAL pruebas.\n\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/?v=$TIMESTAMP)" \
               '{text: $texto}')
           else
             MENSAJE=$(jq -n \
-              --arg texto "✅ *Selenium Demo*\n\n🧪 **$CASO**\n\n✔️ $PASADAS de $TOTAL pruebas pasaron.\n\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/)" \
+              --arg texto "✅ *Selenium Demo*\n\n🧪 **$CASO**\n\n✔️ $PASADAS de $TOTAL pruebas pasaron.\n\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/?v=$TIMESTAMP)" \
               '{text: $texto}')
           fi
 
