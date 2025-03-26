@@ -36,6 +36,7 @@ jobs:
           mkdir -p report
           cp -r reports/* report/ || true
           mv report/ExtentReport.html report/index.html || true
+          echo "<!-- Generated at $(date -u) -->" >> report/index.html
 
       - name: Deploy report to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
