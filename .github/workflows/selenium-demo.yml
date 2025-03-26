@@ -36,8 +36,16 @@ jobs:
         run: |
           mkdir -p report
           cp -r reports/* report/
-          mv report/ExtentReport.html report/index.html
-          echo "<!-- Updated: $(date -u) -->" >> report/ExtentReport.html
+          
+          # Verifica si se generó correctamente antes de moverlo y agregar comentario
+          if [ -f report/ExtentReport.html ]; then
+            cp report/ExtentReport.html report/index.html
+            echo "<!-- Updated: $(date -u) -->" >> report/ExtentReport.html
+          else
+            echo "ERROR: ExtentReport.html no fue generado."
+            exit 1
+          fi
+
       - name: Clean old git data
         run: rm -rf ./report/.git || true
 
@@ -59,6 +67,7 @@ jobs:
           git add reports/ExtentReport.html
           git commit -m "Update ExtentReport.html after workflow" || echo "No changes to commit"
           git push origin main
+
       - name: Send summary to Teams
         env:
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
@@ -68,11 +77,14 @@ jobs:
             echo "Error: Report file not found!"
             exit 1
           fi
+
           PASADAS=$(grep -c "test-status label pass" report/ExtentReport.html) || PASADAS=0
           FALLIDAS=$(grep -c "test-status label fail" report/ExtentReport.html) || FALLIDAS=0
           TOTAL=$((PASADAS + FALLIDAS))
           TIMESTAMP=$(date +%s)
+
           CASO=$(grep -oP "<div class='test-details-name'>\\K[^<]+" report/ExtentReport.html | head -1) || CASO="Conjunto de Pruebas"
+
           if [ "$FALLIDAS" -gt 0 ]; then
             MENSAJE=$(jq -n \
               --arg texto "❌ *Selenium Demo*\n\n🧪 **$CASO**\n\n❗ Fallaron $FALLIDAS de $TOTAL pruebas.\n\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/ExtentReport.html?v=$TIMESTAMP)" \
@@ -82,6 +94,7 @@ jobs:
               --arg texto "✅ *Selenium Demo*\n\n🧪 **$CASO**\n\n✔️ $PASADAS de $TOTAL pruebas pasaron.\n\n🔗 [Ver reporte](https://ozkar-bside.github.io/Selenium-demo/ExtentReport.html?v=$TIMESTAMP)" \
               '{text: $texto}')
           fi
+
           curl -X POST -H "Content-Type: application/json" \
                -d "$MENSAJE" \
                "$TEAMS_WEBHOOK_URL" || echo "Error al enviar a Teams"
