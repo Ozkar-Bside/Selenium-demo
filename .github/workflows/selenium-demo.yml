@@ -36,15 +36,9 @@ jobs:
         run: |
           mkdir -p report
           cp -r reports/* report/
-          
-          # Verifica si se generó correctamente antes de moverlo y agregar comentario
-          if [ -f report/ExtentReport.html ]; then
-            cp report/ExtentReport.html report/index.html
-            echo "<!-- Updated: $(date -u) -->" >> report/ExtentReport.html
-          else
-            echo "ERROR: ExtentReport.html no fue generado."
-            exit 1
-          fi
+          cp report/ExtentReport.html report/index.html  # Usa cp en lugar de mv
+          echo "<!-- Updated: $(date -u) -->" >> report/ExtentReport.html
+
 
       - name: Clean old git data
         run: rm -rf ./report/.git || true
