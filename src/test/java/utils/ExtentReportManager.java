@@ -10,7 +10,7 @@ public class ExtentReportManager {
 
     public static ExtentReports getInstance() {
         if (extent == null) {
-            createInstance("reports/index.html");
+            createInstance("reports/ExtentReport.html");
         }
         return extent;
     }
