@@ -21,8 +21,8 @@ jobs:
         uses: browser-actions/setup-chrome@v1
 
       - name: Run tests
-        run: TZ=America/Mexico_City mvn clean test
-        
+        run: mvn clean test
+
   deploy-report:
     needs: test
     runs-on: ubuntu-latest
