@@ -44,4 +44,4 @@ jobs:
           publish_dir: ./report
 
       - name: Mostrar liga del reporte al finalizar
-        run: echo "::notice title=📊 Reporte de Pruebas::Ver el reporte en 👉 https://ozkar-bside.github.io/Selenium-demo/ExtentReport.html"
+        run: echo "::notice title=📊 Reporte de Pruebas::Ver el reporte en 👉 https://ozkar-bside.github.io/Selenium-demo/"
