@@ -36,6 +36,7 @@ jobs:
         run: |
           mkdir -p report
           cp -r reports/* report/
+          mv report/ExtentReport.html report/index.html
           echo "<!-- Updated: $(date -u) -->" >> report/ExtentReport.html
 
       - name: Clean old git data
